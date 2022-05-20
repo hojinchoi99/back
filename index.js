@@ -1,23 +1,54 @@
-var express = require('express');
-var { graphqlHTTP } = require('express-graphql');
-var { buildSchema } = require('graphql');
+const { ApolloServer, gql } = require("apollo-server");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
-var schema = buildSchema(`
-  type Query {
-    hello: String
+const typeDefs = gql`
+  type Book {
+    title: String
+    author: String
   }
-`);
+  type Query {
+    readBooks: [Book]
+  }
+  type Mutation {
+    createBooks(title: String, author: String): Boolean
+    updateBooks(id: Int, title: String, author: String): Boolean
+    deleteBooks(id: Int): Boolean
+  }
+`;
 
-var root = {
-  hello: () => {
-    return 'hello world!';
+const resolvers = {
+  Query: {
+    readBooks: (_, __, ___) => prisma.books.findMany(),
+  },
+  Mutation: {
+    createBooks: async (_, { title, author }, ___) => {
+      await prisma.books.create({ data: { title, author } });
+      return true;
+    },
+    updateBooks: async (_, { id, title, author }, ___) => {
+      await prisma.books.update({
+        where: { id },
+        data: { title, author },
+      });
+      return true;
+    },
+    deleteBooks: async (_, { id }, ___) => {
+      await prisma.books.delete({
+        where: { id },
+      });
+      return true;
+    },
   },
 };
 
-var app = express();
-app.use('/node_graph', graphqlHTTP({
-  schema: schema,
-  rootValue: root,
-  graphiql: true,
-}));
-app.listen(4000);
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  csrfPrevention: true,
+});
+
+// The `listen` method launches a web server.
+server.listen().then(({ url }) => {
+  console.log(`🚀  Server ready at ${url}`);
+});
